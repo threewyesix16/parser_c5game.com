@@ -10,25 +10,39 @@ from tkinter import filedialog as fd
 
 from ttkthemes import ThemedTk
 
+# _______________________Constants_______________________
+
+# TODO привязать КСГО ссылку
 URL = 'https://www.c5game.com/dota.html?sort=price'
 HEADERS = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36",
     "accept": "application/json, text/javascript, */*; q=0.01",
 }
 
+GAME = ["DOTA", "CSGO"]
+
 DEAL_TYPE = {"Selling": '',
              "Purchasing": "on"}
 
-RARITY = {"All": None,
-          "Common": 'common',
-          "Uncommon": 'uncommon',
-          "Rare": 'rare',
-          "Mythical": 'mythical',
-          "Immortal": 'immortal',
-          "Ancient": 'ancient',
-          "Legendary": 'legendary',
-          "Arcana": 'arcana',
-          }
+RARITY_DOTA = {"All": None,
+               "Common": 'common',
+               "Uncommon": 'uncommon',
+               "Rare": 'rare',
+               "Mythical": 'mythical',
+               "Immortal": 'immortal',
+               "Ancient": 'ancient',
+               "Legendary": 'legendary',
+               "Arcana": 'arcana',
+               }
+
+EXTERIOR_CSGO = {"All": None,
+                 "Factory New": "WearCategory0",
+                 "Minimal Wear": "WearCategory1",
+                 "Field-Tested": "WearCategory2",
+                 "Well-Worn": "WearCategory3",
+                 "Battle-Scarred": "WearCategory4",
+                 "Not Painted": "WearCategoryNA"
+                 }
 
 
 # _______________________Parser functions_______________________
@@ -56,13 +70,15 @@ def get_content(request, deal_type):
     return items
 
 
+# TODO осуществить зависимость от поля Deal type
+# TODO задать время создания в имени файла
 def save_into_csv(content, deal_type):
     if deal_type == "Selling":
         file_name = "selling.csv"
     else:
         file_name = "purchasing.csv"
 
-    save_path = os.path.join(top_entry_filepath.get(), file_name)
+    save_path = os.path.join(middle_entry_filepath.get(), file_name)
     with open(file=save_path, mode='w', newline='', encoding='utf8') as f:
         writer = csv.writer(f, delimiter=',')
         writer.writerow(["Item", deal_type])
@@ -79,17 +95,29 @@ def merging():
 
 # _______________________TTK functions_______________________
 
+
+def clear_rarity():
+    middle_combobox_rarity.current(0)
+
+
+def change_game():
+    if top_combobox_game.get() == "DOTA":
+        middle_combobox_rarity['values'] = [key for key in RARITY_DOTA.keys()]
+    elif top_combobox_game.get() == "CSGO":
+        middle_combobox_rarity['values'] = [key for key in EXTERIOR_CSGO.keys()]
+
+
 def filepath_to_save():
     file_path = fd.askdirectory(title='Choose folder')
     if file_path:
-        top_entry_filepath.delete('1', 'end')
-        top_entry_filepath.insert('1', file_path)
+        middle_entry_filepath.delete('1', 'end')
+        middle_entry_filepath.insert('1', file_path)
 
 
 def get_params_and_parse():
-    rarity = RARITY[top_combobox_rarity.get()]
-    min = top_entry_min.get()
-    max = top_entry_max.get()
+    rarity = RARITY_DOTA[middle_combobox_rarity.get()]
+    min = middle_entry_min.get()
+    max = middle_entry_max.get()
     main(rarity=rarity, min_price=min, max_price=max)
 
 
@@ -114,7 +142,6 @@ def main(rarity='', min_price=0, max_price=0):
         print('Connection problems')
 
 
-
 # _______________________Main window_______________________
 
 
@@ -123,51 +150,74 @@ window.geometry("600x600+1000+300")
 window.resizable(width=False, height=False)
 window.title("Pars#r")
 
-# TOP BLOCK
+# GAMENAME BLOCK
 background_top = ttk.Frame(window, )
-background_top.place(anchor='n', relx=0.5, rely=0.1, relwidth=0.9, relheight=0.2)
+background_top.place(anchor='n', relx=0.5, rely=0.05, relwidth=0.9, relheight=0.1)
 
-top_title_rarity = ttk.Label(background_top, anchor='s')
-top_title_rarity.place(relwidth=0.25, relheight=0.25, )
-top_title_rarity['text'] = "Rarity"
-top_combobox_rarity = ttk.Combobox(background_top, state="readonly", values=[key for key in RARITY.keys()])
-top_combobox_rarity.place(relwidth=0.25, relheight=0.25, rely=0.25)
-top_combobox_rarity.current(0)
+top_title_game = ttk.Label(background_top, anchor='center')
+top_title_game.place(relwidth=0.25, relheight=0.5, )
+top_title_game['text'] = "Game"
+top_combobox_game = ttk.Combobox(background_top, state="readonly", values=[name for name in GAME], postcommand=clear_rarity)
+top_combobox_game.place(relx=0.25, rely=0, relwidth=0.25, relheight=0.5, )
+top_combobox_game.current(0)
 
-top_title_min = ttk.Label(background_top, anchor='s')
-top_title_min.place(relwidth=0.25, relheight=0.25, relx=0.25)
-top_title_min['text'] = "Min price"
-top_entry_min = ttk.Entry(background_top, )
-top_entry_min.place(relwidth=0.25, relheight=0.25, relx=0.25, rely=0.25)
-
-top_title_max = ttk.Label(background_top, anchor='s')
-top_title_max.place(relwidth=0.25, relheight=0.25, relx=0.5)
-top_title_max['text'] = "Max price"
-top_entry_max = ttk.Entry(background_top, )
-top_entry_max.place(relwidth=0.25, relheight=0.25, relx=0.5, rely=0.25)
-
-top_title_rate = ttk.Label(background_top, anchor='s')
-top_title_rate.place(relwidth=0.25, relheight=0.25, rely=0.5)
+top_title_rate = ttk.Label(background_top, anchor='center')
+top_title_rate.place(relx=0, rely=0.5, relwidth=0.25, relheight=0.5, )
 top_title_rate['text'] = "CNY Rate"
 top_entry_rate = ttk.Entry(background_top, )
-top_entry_rate.place(relwidth=0.25, relheight=0.25, rely=0.75)
-top_entry_rate.insert(0, '10.43')
+top_entry_rate.place(relx=0.25, rely=0.5, relwidth=0.25, relheight=0.5, )
+top_entry_rate.insert(0, '10.5')
 
-top_title_filepath = ttk.Label(background_top, anchor='s')
-top_title_filepath.place(relwidth=0.5, relheight=0.25, relx=0.25, rely=0.5)
-top_title_filepath['text'] = "Path"
-top_entry_filepath = ttk.Entry(background_top, )
-top_entry_filepath.place(relwidth=0.35, relheight=0.25, relx=0.25, rely=0.75)
-top_button_filepath = ttk.Button(background_top, command=filepath_to_save)
-top_button_filepath.place(relwidth=0.15, relheight=0.25, relx=0.6, rely=0.75)
-top_button_filepath['text'] = '< ---'
+# TOP BLOCK
+background_middle = ttk.Frame(window, )
+background_middle.place(anchor='n', relx=0.5, rely=0.2, relwidth=0.9, relheight=0.2)
 
-top_button_parse = ttk.Button(background_top, text='P#rse!', command=get_params_and_parse)
-top_button_parse.place(relx=0.75, rely=0, relwidth=0.25, relheight=1)
+# TODO привязать КСГО ссылку
+middle_title_rarity = ttk.Label(background_middle, anchor='s')
+middle_title_rarity.place(relwidth=0.25, relheight=0.25, )
+middle_title_rarity['text'] = "Rarity | Exterior"
+middle_combobox_rarity = ttk.Combobox(background_middle, state="readonly", values=[key for key in RARITY_DOTA.keys()], postcommand=change_game)
+middle_combobox_rarity.place(relwidth=0.25, relheight=0.25, rely=0.25)
+middle_combobox_rarity.current(0)
+
+middle_title_type = ttk.Label(background_middle, anchor='s')
+middle_title_type.place(relx=0.25, relwidth=0.25, relheight=0.25, )
+middle_title_type['text'] = "Deal type"
+middle_combobox_type = ttk.Combobox(background_middle, state="readonly", values=[key for key in DEAL_TYPE.keys()], postcommand=change_game)
+middle_combobox_type.place(relx=0.25, rely=0.25, relwidth=0.25, relheight=0.25, )
+middle_combobox_type.current(0)
+
+middle_title_min = ttk.Label(background_middle, anchor='s')
+middle_title_min.place(relx=0.5, relwidth=0.25, relheight=0.25, )
+middle_title_min['text'] = "Min price"
+middle_entry_min = ttk.Entry(background_middle, )
+middle_entry_min.place(relx=0.5, rely=0.25, relwidth=0.25, relheight=0.25, )
+
+middle_title_max = ttk.Label(background_middle, anchor='s')
+middle_title_max.place(relx=0.75, relwidth=0.25, relheight=0.25, )
+middle_title_max['text'] = "Max price"
+middle_entry_max = ttk.Entry(background_middle, )
+middle_entry_max.place(relx=0.75, rely=0.25, relwidth=0.25, relheight=0.25, )
+
+middle_title_filepath = ttk.Label(background_middle, anchor='s')
+middle_title_filepath.place(relwidth=0.5, relheight=0.25, relx=0.25, rely=0.5)
+middle_title_filepath['text'] = "Path"
+middle_entry_filepath = ttk.Entry(background_middle, )
+middle_entry_filepath.place(relwidth=0.35, relheight=0.25, relx=0.25, rely=0.75)
+middle_button_filepath = ttk.Button(background_middle, command=filepath_to_save)
+middle_button_filepath.place(relwidth=0.15, relheight=0.25, relx=0.6, rely=0.75)
+middle_button_filepath['text'] = '< ---'
+
+# TODO добавить файлнейм
+
+
+# TODO перенести кнопку Parse в топ блок
+middle_button_parse = ttk.Button(background_middle, text='P#rse!', command=get_params_and_parse)
+middle_button_parse.place(relx=0.75, rely=0.5, relwidth=0.25, relheight=0.5)
 
 # BOTTOM BLOCK
 background_bot = ttk.Frame(window)
-background_bot.place(anchor='n', relx=0.5, rely=0.35, relwidth=0.9, relheight=0.6)
+background_bot.place(anchor='n', relx=0.5, rely=0.45, relwidth=0.9, relheight=0.6)
 
 bot_label_text = ttk.Label(background_bot, anchor='nw', wraplength=350)
 bot_label_text.place(anchor='n', relx=0.5, relwidth=1, relheight=1)
