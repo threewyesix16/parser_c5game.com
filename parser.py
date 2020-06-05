@@ -1,5 +1,6 @@
 import csv
 import os
+import threading
 import pandas as pd
 
 import requests
@@ -13,7 +14,10 @@ from ttkthemes import ThemedTk
 # _______________________Constants_______________________
 
 # TODO привязать КСГО ссылку
-URL = 'https://www.c5game.com/dota.html?sort=price'
+# URLS = {
+#     "DOTA": 'https://www.c5game.com/dota.html?sort=price',
+#     "CSGO": 'https://www.c5game.com/csgo/default/result.html?sort=price'}
+
 HEADERS = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36",
     "accept": "application/json, text/javascript, */*; q=0.01",
@@ -21,8 +25,8 @@ HEADERS = {
 
 GAME = ["DOTA", "CSGO"]
 
-DEAL_TYPE = {"Selling": '',
-             "Purchasing": "on"}
+DEAL_TYPES = {"Selling": '',
+              "Purchasing": "on"}
 
 RARITY_DOTA = {"All": None,
                "Common": 'common',
@@ -47,8 +51,24 @@ EXTERIOR_CSGO = {"All": None,
 
 # _______________________Parser functions_______________________
 
+
+def get_special_variables():
+    if top_combobox_game.get() == "DOTA":
+        return {
+            "url": 'https://www.c5game.com/dota.html?sort=price',
+            "html_rarity": "rarity",
+            "rarity": RARITY_DOTA[middle_combobox_rarity.get()],
+        }
+    elif top_combobox_game.get() == "CSGO":
+        return {
+            "url": 'https://www.c5game.com/csgo/default/result.html?sort=price',
+            "html_rarity": "exterior",
+            "rarity": EXTERIOR_CSGO[middle_combobox_rarity.get()],
+        }
+
+
 def get_request(url, params=None):
-    return requests.get(url=URL, headers=HEADERS, params=params)
+    return requests.get(url=url, headers=HEADERS, params=params)
 
 
 def get_content(request, deal_type):
@@ -64,8 +84,8 @@ def get_content(request, deal_type):
     soup_elements = soup.find_all(name="li", class_=class_name)
     for el in soup_elements:
         items.append({
-            "item_name": el.find(name="p", class_="name").get_text(strip=True),
-            "item_price": el.find(name="span", class_="price").get_text(strip=True).replace("￥ ", ""),
+            "item_name": el.find(name="p", class_="name").get_text(strip=True).translate(str.maketrans('', '', '★™')).strip(),
+            "item_price": el.find(name="span", class_="price").get_text(strip=True).replace("￥", "").strip(),
         })
     return items
 
@@ -114,32 +134,46 @@ def filepath_to_save():
         middle_entry_filepath.insert('1', file_path)
 
 
-def get_params_and_parse():
-    rarity = RARITY_DOTA[middle_combobox_rarity.get()]
-    min = middle_entry_min.get()
-    max = middle_entry_max.get()
-    main(rarity=rarity, min_price=min, max_price=max)
-
 
 # _______________________Main function_______________________
 
-def main(rarity='', min_price=0, max_price=0):
-    request = get_request(URL)
-    if request.status_code == 200:
-        for type in DEAL_TYPE:
-            full_content = []
-            for page in range(1, 101):
-                request = get_request(URL, params={"page": page, "min": min_price, "max": max_price, "rarity": rarity, "only": DEAL_TYPE[type]})
-                content = get_content(request, type)
+
+# TODO мультипоточность
+def parse():
+    parse_thread = threading.Thread(
+        target=main,
+        name="main_thread",
+        daemon=True,
+    )
+    parse_thread.start()
+
+
+def main():
+    spec_vars = get_special_variables()
+    for deal_type in DEAL_TYPES:
+        full_content = []
+        print(deal_type)
+        for page in range(1, 101):
+            request = get_request(spec_vars['url'], params={
+                "page": page,
+                "min": middle_entry_min.get(),
+                "max": middle_entry_max.get(),
+                spec_vars["html_rarity"]: spec_vars["rarity"],
+                "only": DEAL_TYPES[deal_type]
+            })
+            if request.status_code == 200:
+                content = get_content(request, deal_type)
+                print(page, len(content))
                 if not content:
                     break
                 full_content.extend(content)
-            save_into_csv(full_content, type)
+            else:
+                # TODO дописать else
+                pass
 
-        merging()
+        save_into_csv(full_content, deal_type)
 
-    else:
-        print('Connection problems')
+    merging()
 
 
 # _______________________Main window_______________________
@@ -183,7 +217,7 @@ middle_combobox_rarity.current(0)
 middle_title_type = ttk.Label(background_middle, anchor='s')
 middle_title_type.place(relx=0.25, relwidth=0.25, relheight=0.25, )
 middle_title_type['text'] = "Deal type"
-middle_combobox_type = ttk.Combobox(background_middle, state="readonly", values=[key for key in DEAL_TYPE.keys()], postcommand=change_game)
+middle_combobox_type = ttk.Combobox(background_middle, state="readonly", values=[key for key in DEAL_TYPES.keys()], postcommand=change_game)
 middle_combobox_type.place(relx=0.25, rely=0.25, relwidth=0.25, relheight=0.25, )
 middle_combobox_type.current(0)
 
@@ -212,7 +246,7 @@ middle_button_filepath['text'] = '< ---'
 
 
 # TODO перенести кнопку Parse в топ блок
-middle_button_parse = ttk.Button(background_middle, text='P#rse!', command=get_params_and_parse)
+middle_button_parse = ttk.Button(background_middle, text='P#rse!', command=parse)
 middle_button_parse.place(relx=0.75, rely=0.5, relwidth=0.25, relheight=0.5)
 
 # BOTTOM BLOCK
