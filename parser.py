@@ -6,6 +6,7 @@ from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse, parse_qsl
 
 from tkinter import ttk
 from tkinter import filedialog as fd
@@ -48,6 +49,23 @@ EXTERIOR_CSGO = {"All": None,
 
 
 # _______________________Parser functions_______________________
+
+# TODO если нет знчения page - выдает ошибку (проверить на дота-иммортал)
+def get_last_page_number(spec_vars):
+    request = get_request(spec_vars['url'], params={
+        "page": 1,
+        "only": "",
+        "min": middle_entry_min.get(),
+        "max": middle_entry_max.get(),
+        spec_vars["html_rarity"]: spec_vars["rarity"],
+    })
+    raw_html = request.text
+    soup = BeautifulSoup(markup=raw_html, features="html.parser")
+    last_page_href = soup.find(name="li", class_="last").find_next('a').get('href')
+    parsed_url = urlparse(last_page_href, scheme="/<path>?<query>").query
+    params_dict = dict(parse_qsl(parsed_url))
+    last_page_number = params_dict["page"]
+    return last_page_number
 
 
 def get_special_variables():
@@ -100,9 +118,9 @@ def save_into_csv(content, deal_type, current_time):
     with open(file=save_path, mode='w', newline='', encoding='utf8') as f:
         writer = csv.writer(f, delimiter=',')
         if deal_type == '':
-            writer.writerow(["Item", "RUR selling price"])
+            writer.writerow(["Item", "Sell"])
         elif deal_type == 'on':
-            writer.writerow(["Item", "RUR purchasing price"])
+            writer.writerow(["Item", "Purchase"])
         for item in content:
             writer.writerow([item['item_name'], item['item_price']])
 
@@ -116,6 +134,7 @@ def merging(current_time):
     else:
         merged = sell.merge(prch)
         merged.to_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " snp_matching " + current_time + ".csv"), index=False)
+        label_message(merged, clear=True)
         print(merged)
 
 
@@ -138,6 +157,14 @@ def filepath_to_save():
     if file_path:
         middle_entry_filepath.delete('1', 'end')
         middle_entry_filepath.insert('1', file_path)
+
+
+def label_message(text, clear=False):
+    if clear:
+        bot_label_text['text'] = f'{text}\n'
+    else:
+        bot_label_text['text'] += f'{text}\n'
+    bot_label_text.update()
 
 
 def block_ui(flag):
@@ -180,11 +207,15 @@ def parse():
 
 def main():
     block_ui(True)
+    bot_label_text['text'] = ''
     current_time = datetime.strftime(datetime.now(), '%d.%m.%Y %H.%M.%S')
     spec_vars = get_special_variables()
+    last_page_number = get_last_page_number(spec_vars)
+    label_message(f"Pages found: {int(last_page_number) + 1}.")
+    total_page = 0
+
     for deal_type in DEAL_TYPES[spec_vars["deal_type"]]:
         full_content = []
-        print(deal_type)
         for page in range(1, 101):
             request = get_request(spec_vars['url'], params={
                 "page": page,
@@ -193,20 +224,19 @@ def main():
                 "max": middle_entry_max.get(),
                 spec_vars["html_rarity"]: spec_vars["rarity"],
             })
-            print(request.url)
             if request.status_code == 200:
-                print(spec_vars["deal_type"])
                 content = get_content(request, deal_type)
-                print(page, len(content))
                 if not content:
                     break
+                total_page += 1
+                label_message(f'Page: {total_page}. Items: {len(content)}.')
                 full_content.extend(content)
             else:
-                # TODO дописать else
+                label_message("Connection problems")
+                label_message(request.status_code)
                 pass
 
         save_into_csv(full_content, deal_type, current_time)
-
     merging(current_time)
 
     block_ui(False)
@@ -231,6 +261,7 @@ top_combobox_game = ttk.Combobox(background_top, state="readonly", values=[name 
 top_combobox_game.place(relx=0.25, rely=0, relwidth=0.25, relheight=0.5, )
 top_combobox_game.current(0)
 
+# TODO парс курса валют
 top_title_rate = ttk.Label(background_top, anchor='center')
 top_title_rate.place(relx=0, rely=0.5, relwidth=0.25, relheight=0.5, )
 top_title_rate['text'] = "CNY Rate"
@@ -238,6 +269,7 @@ top_entry_rate = ttk.Entry(background_top, )
 top_entry_rate.place(relx=0.25, rely=0.5, relwidth=0.25, relheight=0.5, )
 top_entry_rate.insert(0, '10')
 
+# TODO при нажатии очищать текстлейбл
 top_button_parse = ttk.Button(background_top, text='P#rse!', command=parse)
 top_button_parse.place(relx=0.75, rely=0, relwidth=0.25, relheight=1)
 
@@ -287,10 +319,13 @@ middle_button_filepath['text'] = '< ---'
 # middle_entry_filename.place(relx=0.75, rely=0.75, relwidth=0.25, relheight=0.25, )
 
 # BOTTOM BLOCK
+# TODO вертикальная полоса прокрутки
 background_bot = ttk.Frame(window)
-background_bot.place(anchor='n', relx=0.5, rely=0.45, relwidth=0.9, relheight=0.6)
+background_bot.place(anchor='n', relx=0.5, rely=0.45, relwidth=0.9, relheight=0.5)
 
-bot_label_text = ttk.Label(background_bot, anchor='nw', wraplength=350)
-bot_label_text.place(anchor='n', relx=0.5, relwidth=1, relheight=1)
+bot_label_text = ttk.Label(background_bot, anchor='nw', wraplength=500, font='Consolas 9')
+bot_label_text.place(anchor='n', relx=0.5, rely=0, relwidth=1, relheight=1)
+
+
 
 window.mainloop()
