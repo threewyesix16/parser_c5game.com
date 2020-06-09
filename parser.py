@@ -1,6 +1,7 @@
 import csv
 import os
 import threading
+
 import pandas as pd
 from datetime import datetime
 
@@ -8,8 +9,10 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qsl
 
+from tkinter import Text, INSERT, Scrollbar, END
 from tkinter import ttk
 from tkinter import filedialog as fd
+from tkinter import messagebox as mb
 
 from ttkthemes import ThemedTk
 
@@ -50,7 +53,27 @@ EXTERIOR_CSGO = {"All": None,
 
 # _______________________Parser functions_______________________
 
-# TODO если нет знчения page - выдает ошибку (проверить на дота-иммортал)
+def correctness_entries_check():
+    checklist = {top_title_rate['text']: top_entry_rate,
+                 middle_title_min['text']: middle_entry_min,
+                 middle_title_max['text']: middle_entry_max}
+
+    for field_name, field_value in checklist.items():
+        if field_value.get():
+            try:
+                float(field_value.get())
+            except:
+                mb.showwarning("Entry value is not correct.", f"{field_name} field must contain numerical value.")
+                return False
+
+    if middle_entry_filepath.get():
+        if not os.path.exists(middle_entry_filepath.get()):
+            mb.showwarning("Entry value is not correct.", f"There is no path like '{middle_entry_filepath.get()}'.\nEnter a valid path.")
+            return False
+
+    return True
+
+
 def get_last_page_number(spec_vars):
     request = get_request(spec_vars['url'], params={
         "page": 1,
@@ -64,7 +87,10 @@ def get_last_page_number(spec_vars):
     last_page_href = soup.find(name="li", class_="last").find_next('a').get('href')
     parsed_url = urlparse(last_page_href, scheme="/<path>?<query>").query
     params_dict = dict(parse_qsl(parsed_url))
-    last_page_number = params_dict["page"]
+    try:
+        last_page_number = params_dict["page"]
+    except:
+        last_page_number = 1
     return last_page_number
 
 
@@ -126,16 +152,20 @@ def save_into_csv(content, deal_type, current_time):
 
 
 def merging(current_time):
-    try:
+    if middle_combobox_type.get() == 'All':
         sell = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " selling " + current_time + ".csv"))
         prch = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " purchasing " + current_time + ".csv"))
-    except:
-        print('No file')
-    else:
         merged = sell.merge(prch)
         merged.to_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " snp_matching " + current_time + ".csv"), index=False)
         label_message(merged, clear=True)
-        print(merged)
+    elif middle_combobox_type.get() == 'Selling':
+        sell = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " selling " + current_time + ".csv"))
+        label_message(sell, clear=True)
+    elif middle_combobox_type.get() == 'Purchasing':
+        prch = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " purchasing " + current_time + ".csv"))
+        label_message(prch, clear=True)
+    else:
+        label_message("Output error")
 
 
 # _______________________TTK functions_______________________
@@ -160,11 +190,20 @@ def filepath_to_save():
 
 
 def label_message(text, clear=False):
+    if len(text) == 0:
+        text = "Empty output"
     if clear:
-        bot_label_text['text'] = f'{text}\n'
+        bot_text_text.configure(state='normal')
+        bot_text_text.delete('1.0', END)
+        bot_text_text.insert(INSERT, f'{text}\n')
+        bot_text_text.configure(state='disabled')
+
     else:
-        bot_label_text['text'] += f'{text}\n'
-    bot_label_text.update()
+        bot_text_text.configure(state='normal')
+        bot_text_text.insert(INSERT, f'{text}\n')
+        bot_text_text.configure(state='disabled')
+
+    bot_text_text.update()
 
 
 def block_ui(flag):
@@ -193,10 +232,7 @@ def block_ui(flag):
 # _______________________Main function_______________________
 
 
-# TODO мультипоточность
 def parse():
-    # main()
-
     parse_thread = threading.Thread(
         target=main,
         name="main_thread",
@@ -206,12 +242,14 @@ def parse():
 
 
 def main():
+    if not correctness_entries_check():
+        return
     block_ui(True)
-    bot_label_text['text'] = ''
     current_time = datetime.strftime(datetime.now(), '%d.%m.%Y %H.%M.%S')
     spec_vars = get_special_variables()
     last_page_number = get_last_page_number(spec_vars)
-    label_message(f"Pages found: {int(last_page_number) + 1}.")
+    label_message('Running...', clear=True)
+    label_message(f"Scanning about {int(last_page_number) + 1} pages...")
     total_page = 0
 
     for deal_type in DEAL_TYPES[spec_vars["deal_type"]]:
@@ -232,9 +270,7 @@ def main():
                 label_message(f'Page: {total_page}. Items: {len(content)}.')
                 full_content.extend(content)
             else:
-                label_message("Connection problems")
-                label_message(request.status_code)
-                pass
+                label_message(f"Connection problems.\nStatus code: {request.status_code}.")
 
         save_into_csv(full_content, deal_type, current_time)
     merging(current_time)
@@ -254,14 +290,13 @@ window.title("P#rser")
 background_top = ttk.Frame(window, )
 background_top.place(anchor='n', relx=0.5, rely=0.05, relwidth=0.9, relheight=0.1)
 
-top_title_game = ttk.Label(background_top, anchor='center')
+top_title_game = ttk.Label(background_top, anchor='center', )
 top_title_game.place(relwidth=0.25, relheight=0.5, )
 top_title_game['text'] = "Game"
 top_combobox_game = ttk.Combobox(background_top, state="readonly", values=[name for name in GAME], postcommand=clear_rarity)
 top_combobox_game.place(relx=0.25, rely=0, relwidth=0.25, relheight=0.5, )
 top_combobox_game.current(0)
 
-# TODO парс курса валют
 top_title_rate = ttk.Label(background_top, anchor='center')
 top_title_rate.place(relx=0, rely=0.5, relwidth=0.25, relheight=0.5, )
 top_title_rate['text'] = "CNY Rate"
@@ -269,7 +304,6 @@ top_entry_rate = ttk.Entry(background_top, )
 top_entry_rate.place(relx=0.25, rely=0.5, relwidth=0.25, relheight=0.5, )
 top_entry_rate.insert(0, '10')
 
-# TODO при нажатии очищать текстлейбл
 top_button_parse = ttk.Button(background_top, text='P#rse!', command=parse)
 top_button_parse.place(relx=0.75, rely=0, relwidth=0.25, relheight=1)
 
@@ -277,7 +311,7 @@ top_button_parse.place(relx=0.75, rely=0, relwidth=0.25, relheight=1)
 background_middle = ttk.Frame(window, )
 background_middle.place(anchor='n', relx=0.5, rely=0.2, relwidth=0.9, relheight=0.2)
 
-middle_title_rarity = ttk.Label(background_middle, anchor='s')
+middle_title_rarity = ttk.Label(background_middle, anchor='s', )
 middle_title_rarity.place(relwidth=0.25, relheight=0.25, )
 middle_title_rarity['text'] = "Rarity | Exterior"
 middle_combobox_rarity = ttk.Combobox(background_middle, state="readonly", values=[key for key in RARITY_DOTA.keys()], postcommand=change_game)
@@ -312,20 +346,16 @@ middle_button_filepath = ttk.Button(background_middle, command=filepath_to_save)
 middle_button_filepath.place(relx=0.85, rely=0.75, relwidth=0.15, relheight=0.25, )
 middle_button_filepath['text'] = '< ---'
 
-# middle_title_filename = ttk.Label(background_middle, anchor='s')
-# middle_title_filename.place(relx=0.75, rely=0.5, relwidth=0.25, relheight=0.25, )
-# middle_title_filename['text'] = "Filename"
-# middle_entry_filename = ttk.Entry(background_middle, )
-# middle_entry_filename.place(relx=0.75, rely=0.75, relwidth=0.25, relheight=0.25, )
-
 # BOTTOM BLOCK
-# TODO вертикальная полоса прокрутки
 background_bot = ttk.Frame(window)
 background_bot.place(anchor='n', relx=0.5, rely=0.45, relwidth=0.9, relheight=0.5)
 
-bot_label_text = ttk.Label(background_bot, anchor='nw', wraplength=500, font='Consolas 9')
-bot_label_text.place(anchor='n', relx=0.5, rely=0, relwidth=1, relheight=1)
+bot_text_text = Text(background_bot, bg="#FCFCFC", fg='black', wrap="word", font='Consolas 10', state='disabled')
+bot_text_text.place(anchor='center', relx=0.5, rely=0.5, relwidth=1, relheight=1)
 
+scroll = Scrollbar(bot_text_text, command=bot_text_text.yview)
+scroll.pack(side='right', fill='y')
 
+bot_text_text.config(yscrollcommand=scroll.set)
 
 window.mainloop()
