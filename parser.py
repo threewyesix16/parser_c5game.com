@@ -63,12 +63,15 @@ def correctness_entries_check():
             try:
                 float(field_value.get())
             except:
-                mb.showwarning("Entry value is not correct.", f"{field_name} field must contain numerical value.")
+                mb.showwarning("Entry value is not correct.",
+                               f"{field_name} field must contain numerical value.")
                 return False
 
     if middle_entry_filepath.get():
         if not os.path.exists(middle_entry_filepath.get()):
-            mb.showwarning("Entry value is not correct.", f"There is no path like '{middle_entry_filepath.get()}'.\nEnter a valid path.")
+            mb.showwarning("Entry value is not correct.",
+                           f"There is no path like '{middle_entry_filepath.get()}'.\n"
+                           "Enter a valid path.")
             return False
 
     return True
@@ -157,15 +160,15 @@ def merging(current_time):
         prch = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " purchasing " + current_time + ".csv"))
         merged = sell.merge(prch)
         merged.to_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " snp_matching " + current_time + ".csv"), index=False)
-        label_message(merged, clear=True)
+        text_message(merged, clear=True)
     elif middle_combobox_type.get() == 'Selling':
         sell = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " selling " + current_time + ".csv"))
-        label_message(sell, clear=True)
+        text_message(sell, clear=True)
     elif middle_combobox_type.get() == 'Purchasing':
         prch = pd.read_csv(os.path.join(middle_entry_filepath.get(), top_combobox_game.get() + " purchasing " + current_time + ".csv"))
-        label_message(prch, clear=True)
+        text_message(prch, clear=True)
     else:
-        label_message("Output error")
+        text_message("Output error")
 
 
 # _______________________TTK functions_______________________
@@ -189,7 +192,7 @@ def filepath_to_save():
         middle_entry_filepath.insert('1', file_path)
 
 
-def label_message(text, clear=False):
+def text_message(text, clear=False):
     if len(text) == 0:
         text = "Empty output"
     if clear:
@@ -248,8 +251,8 @@ def main():
     current_time = datetime.strftime(datetime.now(), '%d.%m.%Y %H.%M.%S')
     spec_vars = get_special_variables()
     last_page_number = get_last_page_number(spec_vars)
-    label_message('Running...', clear=True)
-    label_message(f"Scanning about {int(last_page_number) + 1} pages...")
+    text_message('Running...', clear=True)
+    text_message(f"Scanning about {int(last_page_number) + 1} pages...")
     total_page = 0
 
     for deal_type in DEAL_TYPES[spec_vars["deal_type"]]:
@@ -267,10 +270,11 @@ def main():
                 if not content:
                     break
                 total_page += 1
-                label_message(f'Page: {total_page}. Items: {len(content)}.')
+                text_message(f'Page: {total_page:2}. Items: {len(content):2}.')
                 full_content.extend(content)
             else:
-                label_message(f"Connection problems.\nStatus code: {request.status_code}.")
+                text_message("Connection problems.\n"
+                             f"Status code: {request.status_code}.")
 
         save_into_csv(full_content, deal_type, current_time)
     merging(current_time)
@@ -353,9 +357,9 @@ background_bot.place(anchor='n', relx=0.5, rely=0.45, relwidth=0.9, relheight=0.
 bot_text_text = Text(background_bot, bg="#FCFCFC", fg='black', wrap="word", font='Consolas 10', state='disabled')
 bot_text_text.place(anchor='center', relx=0.5, rely=0.5, relwidth=1, relheight=1)
 
-scroll = Scrollbar(bot_text_text, command=bot_text_text.yview)
-scroll.pack(side='right', fill='y')
+bot_scroll_text = Scrollbar(bot_text_text, command=bot_text_text.yview)
+bot_scroll_text.pack(side='right', fill='y')
 
-bot_text_text.config(yscrollcommand=scroll.set)
+bot_text_text.config(yscrollcommand=bot_scroll_text.set)
 
 window.mainloop()
